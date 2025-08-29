@@ -1,0 +1,23 @@
+<!-- OpenBSD isakmpd decoders -->
+<collection shelf="decoder">
+<decoder name="isakmpd">
+  <program_name_pcre2>^isakmpd</program_name_pcre2>
+</decoder>
+
+<decoder name="isakmpd-from">
+  <parent>isakmpd</parent>
+  <prematch_pcre2>message from </prematch_pcre2>
+  <pcre2>from (\S+) port (\d+)</pcre2>
+  <order>srcip,srcport</order>
+</decoder>
+
+<decoder name="isakmpd-peer">
+  <parent>isakmpd</parent>
+  <prematch_pcre2>from peer</prematch_pcre2>
+  <pcre2>from peer (\S+):(\d+?)$</pcre2>
+  <order>srcip,srcport</order>
+</decoder>
+
+
+
+</collection>

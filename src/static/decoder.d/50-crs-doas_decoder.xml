@@ -1,0 +1,22 @@
+<!-- OpenBSD doas -->
+
+<collection shelf="decoder">
+
+<decoder name="doas">
+  <program_name_pcre2>^doas</program_name_pcre2>
+</decoder>
+
+<decoder name="doas-user">
+  <parent>doas</parent>
+  <pcre2>^(\S+) ran| for (\S+):</pcre2>
+  <order>srcuser</order>
+</decoder>
+
+<decoder name="doas-user2">
+  <parent>doas</parent>
+  <pcre2 offset="after_parent"> as (\S+): </pcre2>
+  <order>dstuser</order>
+</decoder>
+
+
+</collection>
