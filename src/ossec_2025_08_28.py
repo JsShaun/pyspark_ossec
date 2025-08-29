@@ -1,256 +1,217 @@
+
 import warnings
 warnings.filterwarnings('ignore')
-import re
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import regexp_replace, regexp_extract, col, collect_list, when, udf
-from pyspark.sql.types import StructType, StructField, StringType, ArrayType, BooleanType, IntegerType
+import numpy as np
+from sys import getsizeof
+from pyspark.sql import SparkSession, DataFrame
+from pyspark.sql.functions import regexp_replace,regexp_extract,col,collect_list,when,udf
+from pyspark.sql.types import StructType, StructField, StringType, ArrayType, BooleanType, IntegerType, MapType
 import pandas as pd
-from regular.decoder import get_decoder_dataframe
-from regular.rules import get_rules_dataframe
+import re
+from regular.decoder import get_decoder_dataframe  # 返回pandas DataFrame
+from regular.rules import get_rules_dataframe      # 返回pandas DataFrame
+# from regular.rules_cn import RulesCN
 
 
-# ------------------------------
-# 1. 初始化SparkSession（单例模式）
-# ------------------------------
-def create_spark_session() -> SparkSession:
-    """创建配置优化的SparkSession，避免重复初始化"""
-    return SparkSession.builder \
-        .remote("sc://localhost:15002") \
-        .appName("OSSECLogProcessor") \
-        .getOrCreate()
 
 
-# ------------------------------
-# 2. UDF定义与注册（集中管理）
-# ------------------------------
-# 2.1 program_name_pcre2 UDF
-program_name_result_schema = StructType([
+spark = SparkSession.builder \
+.remote("sc://localhost:15002") \
+.appName("CreateDataFrameWithPolars") \
+.getOrCreate()
+
+
+
+
+# 定义返回类型结构（包含OK和msg两个字段）
+result_schema = StructType([
     StructField("OK", BooleanType(), nullable=False),
     StructField("msg", StringType(), nullable=True)
 ])
-
 def _program_name_pcre2_udf(program_name_pcre2, parent, program_name_flag, processed_msg, program_name):
-    """匹配程序名正则并清理日志前缀"""
-    # 空值防御
-    if not all([program_name_pcre2, processed_msg, program_name]):
-        return (False, "Missing required parameters")
-    
-    try:
-        # 预编译正则（过滤空模式）
-        patterns = [
-            re.compile(pattern.strip(), re.IGNORECASE) 
-            for pattern in program_name_pcre2 
-            if pattern and isinstance(pattern, str)
-        ]
-    except re.error as e:
-        return (False, f"Regex error: {str(e)}")
-
+    """
+    PySpark UDF实现，对应原pandas的_program_name_pcre2方法
+    参数:
+        program_name_pcre2: 正则表达式字符串列表
+        parent: parent字段值
+        program_name_flag: 程序名标志(True/False)
+        log: 日志内容
+        program_name: 程序名
+    """
+    # 预编译所有正则表达式（带忽略大小写）
+    patterns = [re.compile(pattern, re.IGNORECASE) for pattern in program_name_pcre2]
     if parent == "":
-        # 遍历正则匹配
+        # 遍历正则表达式进行匹配
         for pattern in patterns:
+            # 尝试匹配program_name
             if pattern.search(program_name):
+                # 匹配成功：清理日志前缀
                 cleaned_log = re.sub(r"^(\S+): ", "", processed_msg)
                 return (True, cleaned_log)
-            return (False, "No match in patterns")  # 第一个不匹配即返回
-
-        # 无匹配时根据flag处理
+            else:
+                # 第一个不匹配就返回False（原逻辑for循环中一旦不匹配就返回）
+                return (False, "")
+        
+        # 循环正常结束（无匹配且列表非空）：根据flag处理
         if program_name_flag:
             cleaned_log = re.sub(r"^(\S+): ", "", processed_msg)
             return (True, cleaned_log)
-        return (True, processed_msg)
-    
-    return (False, "Parent is not empty")
+        else:
+            return (True, processed_msg)
+    else:
+        # parent不为空时返回False
+        return (False, "")
+# 注册UDF
+program_name_pcre2_spark_udf = udf(_program_name_pcre2_udf, result_schema)
 
-program_name_pcre2_spark_udf = udf(_program_name_pcre2_udf, program_name_result_schema)
 
-
-# 2.2 prematch_pcre2 UDF
 prematch_result_schema = StructType([
-    StructField("OK", BooleanType(), nullable=False),
-    StructField("span_start", IntegerType(), nullable=True),
-    StructField("span_end", IntegerType(), nullable=True)
+    StructField("OK", BooleanType(), nullable=False),  # 是否符合prematch规则
+    StructField("span_start", IntegerType(), nullable=True),  # span起始位置
+    StructField("span_end", IntegerType(), nullable=True)     # span结束位置
 ])
+def _prematch_pcre2_udf(msg,offset_in_prematch_pcre2,parent,prematch_pcre2,decoder_name):
+        '''第二步:prematch正则判定以及剔除对于字符
+        根据prematch_pcre2规则,判断是否符合要求,如果符合则返回True且剔除对于的字符
+        '''
+        span = (0,0)
+        if "after_parent" in offset_in_prematch_pcre2:
+           
+            if decoder_name == parent:
+                pass
+                # span = prematch_pcre2_span
+                # for value in prematch_pcre2_span:
+                #     msg = msg[prematch_pcre2_span[-1]:]
+                    # span = value
 
-def _prematch_pcre2_udf(msg, offset_in_prematch_pcre2, parent, prematch_pcre2, decoder_name):
-    """prematch正则判定及字符剔除"""
-    if not all([msg, offset_in_prematch_pcre2, prematch_pcre2]):
-        return (False, 0, 0)
-
-    span_start, span_end = 0, 0
-    current_msg = msg  # 避免修改原始消息
-
-    # 处理after_parent逻辑
-    if "after_parent" in offset_in_prematch_pcre2 and decoder_name == parent:
-        # 这里补充原逻辑中缺失的span处理（根据实际业务完善）
-        pass
-
-    # 正则匹配处理
-    for pattern_str in prematch_pcre2:
-        if not pattern_str or not isinstance(pattern_str, str):
-            continue
-        try:
-            pattern = re.compile(pattern_str.strip(), re.IGNORECASE)
-            mobj = pattern.search(current_msg)
-        except re.error:
-            return (False, 0, 0)
-
-        if mobj and mobj.group() != "":
-            span_end += mobj.span()[1]
-            return (True, span_start, span_end)
-        return (False, 0, 0)  # 第一个不匹配即返回
-
-    return (True, None, None)
-
+        for pattern in prematch_pcre2:
+            mobj = re.compile(pattern, re.IGNORECASE).search(msg)
+            if mobj is not None:
+                if mobj.group() == "":
+                    pass
+                else:
+                    span = (0,span[1] + mobj.span()[1])
+                    return True,*span
+            else:
+                return False,0, 0
+        return True,None,None
 prematch_pcre2_spark_udf = udf(_prematch_pcre2_udf, prematch_result_schema)
 
-
-# 2.3 pcre2 UDF
 pcre2_result_schema = StructType([
     StructField("OK", BooleanType(), nullable=False),
     StructField("shijian", StringType(), nullable=False),
 ])
+def _pcre2_udf(msg,offset_in_pcre2,decoder_name,parent,span_start,span_end,pcre2,order):
+    '''第三步:pcre2正则获取对应的字段值
+    完成或第一步且第二步之后.我们得到的log进行pcre2正则判定,并且可以抽取得到对应的order字段值
+    '''
+    if "after_parent" in offset_in_pcre2:
+        if decoder_name == parent:
+            msg = msg[span_end:]
+                                    
+    if "after_prematch" in offset_in_pcre2:
+        msg = msg[span_start:]
 
-def _pcre2_udf(msg, offset_in_pcre2, decoder_name, parent, span_start, span_end, pcre2, order):
-    """pcre2正则提取字段值"""
-    if not all([msg, pcre2, order]):
-        return (False, "{}")
-
-    current_msg = msg
-
-    # 处理offset逻辑
-    if "after_parent" in offset_in_pcre2 and decoder_name == parent and span_end:
-        current_msg = current_msg[span_end:]
-    if "after_prematch" in offset_in_pcre2 and span_start is not None:
-        current_msg = current_msg[span_start:]
     if "after_regex" in offset_in_pcre2:
-        for pattern_str in pcre2:
-            if pattern_str and isinstance(pattern_str, str):
-                try:
-                    current_msg = re.compile(pattern_str, re.IGNORECASE).sub("", current_msg)
-                except re.error:
-                    continue
+        if decoder_name == decoder_name:
+            for _ in offset_in_pcre2:
+                for pattern in pcre2:
+                    msg = re.compile(pattern, re.IGNORECASE).sub("",msg)      
+    
+    for pattern in pcre2:
+        list1 = re.compile(pattern, re.IGNORECASE).findall(msg)
+        flat_list = [item for sublist in list1 for item in (sublist if isinstance(sublist, tuple) else [sublist])]
+        list2 = [x for x in flat_list if x != ""]
 
-    # 提取并处理匹配结果
-    for pattern_str in pcre2:
-        if not pattern_str or not isinstance(pattern_str, str):
-            continue
-        try:
-            matches = re.compile(pattern_str, re.IGNORECASE).findall(current_msg)
-        except re.error:
-            continue
-
-        # 展平列表并过滤空值（纯Python实现）
-        flat_list = []
-        for item in matches:
-            if isinstance(item, tuple):
-                flat_list.extend(item)
-            else:
-                flat_list.append(item)
-        filtered_list = [x for x in flat_list if x != ""]
-
-        if filtered_list:
-            # 确保order和结果长度匹配
-            result_dict = dict(zip(order[:len(filtered_list)], filtered_list))
-            return (True, str(result_dict))
-
-    return (False, "{}")
-
-pcre2_spark_udf = udf(_pcre2_udf, pcre2_result_schema)
+        # list1 = np.array(re.compile(pattern, re.IGNORECASE).findall(msg)).flatten()
+        # list2 = np.delete(list1, np.where(list1==""))
+        if len(list2) > 0:
+            
+            return True,str(dict(zip(order,list2)))
+    else:
+        return False,str({})
+pcre2_spark_udf = udf(_pcre2_udf,pcre2_result_schema)
 
 
-# ------------------------------
-# 3. 主处理类（职责单一化）
-# ------------------------------
 class OSSEC:
-    def __init__(self, msglist: list):
-        self.spark = create_spark_session()
-        try:
-            self.process(msglist)
-        finally:
-            self.spark.stop()  # 确保资源释放
-
-    def process(self, msglist: list):
-        """主处理流程"""
-        # 加载解码器数据
-        self._load_decoder_data()
-        
-        # 日志预处理
-        preprocessed_df = self._preprocess_logs(msglist)
-        
-        # 执行解码流程
-        result_df = self._decode_logs(preprocessed_df)
-        
-        # 展示结果
-        self._display_results(result_df)
-
-    def _load_decoder_data(self):
-        """加载并注册解码器数据视图"""
+    def __init__(self,msglist:list):
+        # 初始化SparkSession
+  
         df_decoder = get_decoder_dataframe()
-        # 确保关键列类型正确
-        if "program_name_pcre2" in df_decoder.columns:
-            df_decoder["program_name_pcre2"] = df_decoder["program_name_pcre2"].apply(
-                lambda x: x if isinstance(x, list) else [] if pd.isna(x) else [x]
-            )
-        self.spark.createDataFrame(df_decoder).createOrReplaceTempView('dfIsDecoder')
+        spark.createDataFrame(df_decoder).createOrReplaceTempView('dfIsDecoder')
+        df_rules = get_rules_dataframe()
+        # spark.createDataFrame(df_rules).createOrReplaceTempView('dfIsRules')
 
-    def _preprocess_logs(self, msglist: list):
-        """日志预处理：清洗、提取基础字段"""
-        df = self.spark.createDataFrame(msglist)
-        
+
+
+        df = spark.createDataFrame(msglist)
+                
         # 1. 替换多个空格为单个空格
         df = df.withColumn("full_event", regexp_replace(col("msg"), r"\s+", " ")) \
-               .withColumn("processed_msg", col("full_event"))
+            .withColumn("processed_msg", col("full_event"))
 
-        # 2. 移除日期时间（合并正则减少操作）
-        date_patterns = "|".join([
-            r"^\[(Mond?a?y?|Tues?d?a?y?|Wedn?e?s?d?a?y?|Thur?s?d?a?y?|Frid?a?y?|Satu?r?d?a?y?|Sund?a?y?)\.? (Janu?a?r?y?|Febr?u?a?r?y?|Marc?h?|Apri?l?|May|June?|July?|Augu?s?t?|Sept?e?m?b?e?r?|Octo?b?e?r?|Nove?m?b?e?r?|Dece?m?b?e?r?)\.? {1,2}\d{1,2} {1,2}\d{1,2}:\d{1,2}:\d{1,2} \d{4}\] ?",
-            r"^(Janu?a?r?y?|Febr?u?a?r?y?|Marc?h?|Apri?l?|May|June?|July?|Augu?s?t?|Sept?e?m?b?e?r?|Octo?b?e?r?|Nove?m?b?e?r?|Dece?m?b?e?r?)\.? {1,2}(\d{1,2}) {1,2}(\d{1,2}:\d{1,2}:\d{1,2}) ",
-            r"^\d{4}-\d{1,2}-\d{1,2}(T| )(\d{1,2}:\d{1,2}:\d{2})(\S)+ "
-        ])
-        df = df.withColumn("processed_msg", regexp_replace(col("processed_msg"), date_patterns, ""))
+        # 2. 移除不同格式的日期时间
+        # 格式1: [Mon. Jan. 1 00:00:00 2023] 
+        date_pattern1 = r"^\[(Mond?a?y?|Tues?d?a?y?|Wedn?e?s?d?a?y?|Thur?s?d?a?y?|Frid?a?y?|Satu?r?d?a?y?|Sund?a?y?)\.? (Janu?a?r?y?|Febr?u?a?r?y?|Marc?h?|Apri?l?|May|June?|July?|Augu?s?t?|Sept?e?m?b?e?r?|Octo?b?e?r?|Nove?m?b?e?r?|Dece?m?b?e?r?)\.? {1,2}\d{1,2} {1,2}\d{1,2}:\d{1,2}:\d{1,2} \d{4}\] ?"
 
-        # 3. 提取hostname和程序名
-        df = df.withColumn("hostname", regexp_extract(col("processed_msg"), r"^([^\f\n\r\t\v:]+) ", 1)) \
-               .withColumn("program_match1", regexp_extract(col("processed_msg"), r"^([^\f\n\r\t\v:]+ )?([^\f\n\r\t\v:]+\[\S+\]:? )", 0)) \
-               .withColumn("program_part1", regexp_extract(col("processed_msg"), r"^([^\f\n\r\t\v:]+ )?([^\f\n\r\t\v:]+\[\S+\]:? )", 2)) \
-               .withColumn("program_match2", regexp_extract(col("processed_msg"), r"^([^\f\n\r\t\v:]+ )?([^\[\]\f\n\r\t\v]+: )", 0)) \
-               .withColumn("program_part2", regexp_extract(col("processed_msg"), r"^([^\f\n\r\t\v:]+ )?([^\[\]\f\n\r\t\v]+: )", 2))
+        # 格式2: Jan 1 00:00:00 
+        date_pattern2 = r"^(Janu?a?r?y?|Febr?u?a?r?y?|Marc?h?|Apri?l?|May|June?|July?|Augu?s?t?|Sept?e?m?b?e?r?|Octo?b?e?r?|Nove?m?b?e?r?|Dece?m?b?e?r?)\.? {1,2}(\d{1,2}) {1,2}(\d{1,2}:\d{1,2}:\d{1,2}) "
 
-        # 合并程序名匹配结果
-        df = df.withColumn("program_match", when(col("program_match1") == "", col("program_match2")).otherwise(col("program_match1"))) \
-               .withColumn("program_part", when(col("program_part1") == "", col("program_part2")).otherwise(col("program_part1"))) \
-               .withColumn("formatted_program", regexp_replace(col("program_part"), r"(\[\S+\])?:? ", ": ")) \
-               .withColumn("processed_msg", regexp_replace(col("processed_msg"), col("program_match"), col("formatted_program"))) \
-               .withColumn("program_name", regexp_extract(col("formatted_program"), r"^(\S+): ?", 1))
+        # 格式3: 2023-1-1 00:00:00 或 2023-01-01T00:00:00+08:00
+        date_pattern3 = r"^\d{4}-\d{1,2}-\d{1,2}(T| )(\d{1,2}:\d{1,2}:\d{2})(\S)+ "
 
-        # 4. 替换大括号为引号
+        df = df.withColumn("processed_msg", regexp_replace(col("processed_msg"), date_pattern1, "")) \
+            .withColumn("processed_msg", regexp_replace(col("processed_msg"), date_pattern2, "")) \
+            .withColumn("processed_msg", regexp_replace(col("processed_msg"), date_pattern3, ""))
+
+        # 3. 提取hostname
+        hostname_pattern = r"^([^\f\n\r\t\v:]+) "
+        df = df.withColumn("hostname", regexp_extract(col("processed_msg"), hostname_pattern, 1))
+
+        # 4. 处理程序名并格式化
+        # 提取程序部分
+        program_pattern1 = r"^([^\f\n\r\t\v:]+ )?([^\f\n\r\t\v:]+\[\S+\]:? )"
+        program_pattern2 = r"^([^\f\n\r\t\v:]+ )?([^\[\]\f\n\r\t\v]+: )"
+
+        # 先尝试第一个程序模式
+        df = df.withColumn("program_match", regexp_extract(col("processed_msg"), program_pattern1, 0)) \
+            .withColumn("program_part", regexp_extract(col("processed_msg"), program_pattern1, 2))
+
+        # 如果第一个模式没有匹配，尝试第二个模式
+        df = df.withColumn("program_match", when(col("program_match") == "", regexp_extract(col("processed_msg"), program_pattern2, 0)).otherwise(col("program_match"))) \
+            .withColumn("program_part",when(col("program_part") == "",regexp_extract(col("processed_msg"), program_pattern2, 2)).otherwise(col("program_part")))
+
+        # 格式化程序部分
+        df = df.withColumn("formatted_program", regexp_replace(col("program_part"), r"(\[\S+\])?:? ", ": ")) \
+            .withColumn("processed_msg", regexp_replace(col("processed_msg"), col("program_match"), col("formatted_program")))
+
+        # 提取程序名
+        df = df.withColumn("program_name", regexp_extract(col("formatted_program"), r"^(\S+): ?", 1))
+
+        # 5. 替换大括号为引号
         df = df.withColumn("processed_msg", regexp_replace(col("processed_msg"), r"\{", '"')) \
-               .withColumn("processed_msg", regexp_replace(col("processed_msg"), r"\}", '"'))
+            .withColumn("processed_msg", regexp_replace(col("processed_msg"), r"\}", '"'))
 
-        # 选择需要的列并注册视图
-        result_df = df.select(
+        # 选择最终需要的列
+        df.select(
             col("id"),
             col("msg").alias("original_msg"),
             col("full_event"),
             col("processed_msg"),
             col("hostname"),
             col("program_name")
-        )
-        result_df.createOrReplaceTempView('tbmgs')
-        return result_df
+        ).createOrReplaceTempView('tbmgs')
 
-    def _decode_logs(self, preprocessed_df):
-        """执行解码流程：关联解码器 + 应用UDF"""
-        # 1. 关联解码器数据（笛卡尔积，建议后续优化为有条件关联）
-        joined_df = self.spark.sql("""
-            SELECT id, tb1.*, tb2.*
-            FROM tbmgs tb1
-            JOIN dfIsDecoder tb2 ON 1=1
-        """)
+        df1 = spark.sql("""
+            select id,tb1.*,tb2.*
+            from tbmgs tb1
+            join dfIsDecoder tb2 on 1=1 
+            """)
 
-        # 2. 应用program_name_pcre2 UDF
-        df_program = joined_df.withColumn(
-            "program_result",
+        
+        # 应用UDF并展开结果字段
+        df2 = df1.withColumn(
+            "decoder_result",  # 临时存储UDF返回的结构体
             program_name_pcre2_spark_udf(
                 col("program_name_pcre2"),
                 col("parent"),
@@ -259,56 +220,76 @@ class OSSEC:
                 col("program_name")
             )
         ).select(
+            # 保留原始列
             "*",
-            col("program_result.OK").alias("program_OK"),
-            col("program_result.msg").alias("program_msg")
-        ).where(col("program_OK")).drop("program_result", "program_OK")
+            # 展开结构体中的OK和msg字段
+            col("decoder_result.OK").alias("OK"),
+            col("decoder_result.msg").alias("msg")
+        ).where(col("OK")).drop("decoder_result","OK")
+        # df2.show()
 
-        # 3. 应用prematch_pcre2 UDF
-        df_prematch = df_program.withColumn(
-            "prematch_result",
+        
+        # 应用UDF并展开结果字段
+        # msg,offset_in_prematch_pcre2,parent,prematch_pcre2,decoder_name
+        df3 = df2.withColumn(
+            "decoder_result",  # 临时存储UDF返回的结构体
             prematch_pcre2_spark_udf(
-                col("program_msg"),
+                col("msg"),
                 col("offset_in_prematch_pcre2"),
                 col("parent"),
                 col("prematch_pcre2"),
                 col("decoder_name")
             )
         ).select(
+            # 保留原始列
             "*",
-            col("prematch_result.OK").alias("prematch_OK"),
-            col("prematch_result.span_start").alias("span_start"),
-            col("prematch_result.span_end").alias("span_end")
-        ).where(col("prematch_OK")).drop("prematch_result", "prematch_OK")
+            # 展开结构体中的OK和msg字段
+            col("decoder_result.OK").alias("OK"),
+            col("decoder_result.span_start").alias("span_start"),
+            col("decoder_result.span_end").alias("span_end")
+        ).where(col("OK")).drop("decoder_result","OK")
 
-        # 4. 聚合解码器结果（按id分组）
-        df_aggregated = df_prematch.groupBy("id") \
-            .agg(
-                collect_list(col("decoder_name")).alias("decoder_list"),
-                collect_list(col("type")).alias("type_list")
-            )
 
-        # 5. 关联回原始日志数据
-        return self.spark.sql("""
-            SELECT tb1.*, tb2.decoder_list, tb2.type_list
-            FROM tbmgs tb1
-            JOIN (SELECT * FROM df_aggregated) tb2
-            ON tb1.id = tb2.id
+
+        df3.groupBy("id").agg(
+            collect_list(col("decoder_name")).alias("decoder"),
+            collect_list(col("type")).alias("type")
+        ).createOrReplaceTempView('tbdecoder')
+
+
+        df_decoder2 =  spark.sql("""
+        select *
+                  from tbmgs tb1
+                  join tbdecoder tb2 on tb1.id = tb2.id
         """)
 
-    def _display_results(self, df):
-        """展示处理结果"""
-        print("\n=== 日志解码结果 ===")
-        df.select("id", "original_msg", "decoder_list", "type_list").show(truncate=100)
+        df_decoder2.show()
 
 
-# ------------------------------
-# 4. 入口函数
-# ------------------------------
+
+        spark.stop()
+
+
+
 if __name__ == "__main__":
-    # 测试数据
-    msg1 = """Jun 25 14:04:30 10.0.0.1 dropbear[30746]: Failed listening on '7001': Error listening: Address already in use"""
-    msg2 = """May  8 08:26:55 mail postfix/postscreen[22055]: NOQUEUE: reject: RCPT from [157.122.148.242]:47407: 550 5.7.1 Service unavailable; client [157.122.148.242] blocked using bl.spamcop.net; from=<kos@mafia.network>, to=<z13699753428@vip.163.com>, proto=ESMTP, helo=<XL-20160217QQJV>"""
+
+    # ossec stable 版本查看：https://github.com/ossec/ossec-hids/tree/stable
+    msg1 = """Jun 25 14:04:30 10.0.0.1 dropbear[30746]: Failed listening on '7001': Error listening: Address already in use""" 
+    # # 正则参数问题，与下面的1002问题一样
     
-    msglist = [{'msg': msg1, 'id': 1}, {'msg': msg2, 'id': 2}]
-    OSSEC(msglist)
+    msg2 = """May  8 08:26:55 mail postfix/postscreen[22055]: NOQUEUE: reject: RCPT from [157.122.148.242]:47407: 550 5.7.1 Service unavailable; client [157.122.148.242] blocked using bl.spamcop.net; from=<kos@mafia.network>, to=<z13699753428@vip.163.com>, proto=ESMTP, helo=<XL-20160217QQJV>""" 
+    
+    # 按正则规则是正确的，可能与ossec规则有点不一样
+    # 3302是正确的，因为id正则确实是符合的，而3306是不符的，ossec stable版本是符合正则的匹配的
+    
+    # msg = """2014-05-20T09:01:07.283219-04:00 arrakis unbound: [9405:0] notice: sendto failed: Can't assign requested address""" # 稳定版 rule_id=500100~ 不存在 1002结果也是不正确的，1002是普遍存在的
+    
+    # msg = """[Fri Dec 13 06:59:54 2013] [error] [client 12.34.65.78] PHP Notice:"""
+
+    msglist = []
+    msglist.append({'msg':msg1,'id':1})
+    msglist.append({'msg':msg2,'id':2})
+
+    o = OSSEC(msglist)
+  
+   
