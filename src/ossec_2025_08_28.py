@@ -11,7 +11,7 @@ import re
 from regular.decoder import get_decoder_dataframe  # 返回pandas DataFrame
 from regular.rules import get_rules_dataframe      # 返回pandas DataFrame
 # from regular.rules_cn import RulesCN
-from spark_herple import NewSpark
+from sparks import NewSpark
 
 
 
