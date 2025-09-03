@@ -1,210 +1,462 @@
 def get_event_mapping():
-    """
-    提供Linux专用的事件映射列表，包含Syslog设施中文映射及常见事件属性
-    字段说明：
-    - event_id: 事件唯一标识（自定义格式：进程-事件类型）
-    - event_type: 事件业务类型（如登录认证、服务管理）
-    - log_category: Syslog设施（facility）英文名称
-    - log_category_cn: Syslog设施中文名称
-    - log_source: 事件来源进程（如sshd、sudo、kernel）
-    - level: 事件级别（英文，符合Syslog标准）
-    - level_cn: 事件级别中文名称
-    - description: 事件描述（英文）
-    - description_cn: 事件描述（中文）
-    返回：list[dict] - 结构化的Linux事件映射数据
-    """
-    # -------------------------- Linux Syslog设施（facility）中英文映射表 --------------------------
-    syslog_facility_map = {
-        'auth': {'cn': '认证相关'},
-        'authpriv': {'cn': '私密认证'},
-        'cron': {'cn': '定时任务'},
-        'daemon': {'cn': '系统守护进程'},
-        'kern': {'cn': '内核消息'},
-        'lpr': {'cn': '打印服务'},
-        'mail': {'cn': '邮件服务'},
-        'mark': {'cn': '时间标记'},
-        'news': {'cn': '新闻组'},
-        'security': {'cn': '安全事件'},
-        'syslog': {'cn': '系统日志'},
-        'user': {'cn': '用户级消息'},
-        'uucp': {'cn': 'UUCP服务'},
-        'local0': {'cn': '本地设施0'},
-        'local1': {'cn': '本地设施1'},
-        'local2': {'cn': '本地设施2'},
-        'local3': {'cn': '本地设施3'},
-        'local4': {'cn': '本地设施4'},
-        'local5': {'cn': '本地设施5'},
-        'local6': {'cn': '本地设施6'},
-        'local7': {'cn': '本地设施7'}
-    }
-
-    # -------------------------- 核心事件映射列表 --------------------------
+    """创建包含事件类型的完整事件ID映射关系，所有规则支持忽略大小写匹配"""
     return [
-        # 1. 认证类事件（auth/authpriv设施）
-        {
-            "event_id": "sshd-success",
-            "event_type": "登录认证",
-            "log_category": "authpriv",
-            "log_category_cn": syslog_facility_map['authpriv']['cn'],
-            "log_source": "sshd",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Successful SSH login (password authentication)",
-            "description_cn": "SSH登录成功（密码认证）"
-        },
-        {
-            "event_id": "sshd-failure",
-            "event_type": "登录认证",
-            "log_category": "authpriv",
-            "log_category_cn": syslog_facility_map['authpriv']['cn'],
-            "log_source": "sshd",
-            "level": "Warning",
-            "level_cn": "警告",
-            "description": "Failed SSH login attempt (invalid password)",
-            "description_cn": "SSH登录尝试失败（密码无效）"
-        },
-        {
-            "event_id": "sudo-success",
-            "event_type": "权限提升",
-            "log_category": "auth",
-            "log_category_cn": syslog_facility_map['auth']['cn'],
-            "log_source": "sudo",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Successful sudo command execution (user: root)",
-            "description_cn": "sudo命令执行成功（目标用户：root）"
-        },
-        {
-            "event_id": "sudo-failure",
-            "event_type": "权限提升",
-            "log_category": "auth",
-            "log_category_cn": syslog_facility_map['auth']['cn'],
-            "log_source": "sudo",
-            "level": "Error",
-            "level_cn": "错误",
-            "description": "Failed sudo authentication (user: non-root)",
-            "description_cn": "sudo认证失败（非root用户）"
-        },
+    # SSH相关事件
+    {
+        "program": "sshd",
+        "event_id": "sshd_auth_success_pwd",
+        "event_cn": "SSH密码认证成功",
+        "regex": "(?i)sshd\\[\\d+\\]: Accepted password for (\\S+) from (\\S+)",
+        "event_type": "authentication",
+        "log_category": "security",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_auth_fail_pwd",
+        "event_cn": "SSH密码认证失败",
+        "regex": "(?i)sshd\\[\\d+\\]: Failed password for (invalid user )?(\\S+) from (\\S+)",
+        "event_type": "authentication_failure",
+        "log_category": "security",
+        "level": 3,
+        "level_cn": "中"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_auth_success_key",
+        "event_cn": "SSH公钥认证成功",
+        "regex": "(?i)sshd\\[\\d+\\]: Accepted publickey for (\\S+) from (\\S+)",
+        "event_type": "authentication",
+        "log_category": "security",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_invalid_user",
+        "event_cn": "SSH尝试无效用户登录",
+        "regex": "(?i)sshd\\[\\d+\\]: Invalid user (\\S+) from (\\S+)",
+        "event_type": "authentication_failure",
+        "log_category": "security",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_conn_closed",
+        "event_cn": "SSH连接被关闭",
+        "regex": "(?i)sshd\\[\\d+\\]: Connection closed by (authenticated user \\S+ | \\S+)",
+        "event_type": "connection",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_too_many_fails",
+        "event_cn": "SSH多次认证失败",
+        "regex": "(?i)sshd\\[\\d+\\]: Too many authentication failures for (\\S+)",
+        "event_type": "brute_force_attempt",
+        "log_category": "security",
+        "level": 6,
+        "level_cn": "高"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_service_start",
+        "event_cn": "SSH服务启动",
+        "regex": "(?i)sshd\\[\\d+\\]: Server listening on (\\S+) port (\\d+)",
+        "event_type": "service_start",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "sshd",
+        "event_id": "sshd_service_stop",
+        "event_cn": "SSH服务停止",
+        "regex": "(?i)sshd\\[\\d+\\]: Received signal (\\d+); terminating",
+        "event_type": "service_stop",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
 
-        # 2. 内核类事件（kern设施）
-        {
-            "event_id": "kernel-usb-error",
-            "event_type": "硬件事件",
-            "log_category": "kern",
-            "log_category_cn": syslog_facility_map['kern']['cn'],
-            "log_source": "kernel",
-            "level": "Error",
-            "level_cn": "错误",
-            "description": "USB device initialization error (error code: -71)",
-            "description_cn": "USB设备初始化错误（错误码：-71）"
-        },
-        {
-            "event_id": "kernel-disk-warning",
-            "event_type": "存储事件",
-            "log_category": "kern",
-            "log_category_cn": syslog_facility_map['kern']['cn'],
-            "log_source": "kernel",
-            "level": "Warning",
-            "level_cn": "警告",
-            "description": "Disk I/O error detected (device: /dev/sda1)",
-            "description_cn": "检测到磁盘I/O错误（设备：/dev/sda1）"
-        },
-        {
-            "event_id": "kernel-network-up",
-            "event_type": "网络事件",
-            "log_category": "kern",
-            "log_category_cn": syslog_facility_map['kern']['cn'],
-            "log_source": "kernel",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Network interface up (eth0: 192.168.1.100)",
-            "description_cn": "网络接口启用（eth0：192.168.1.100）"
-        },
+    # Sudo相关事件
+    {
+        "program": "sudo",
+        "event_id": "sudo_session_open",
+        "event_cn": "Sudo会话开启",
+        "regex": "(?i)sudo\\[\\d+\\]: (\\S+) : TTY=\\S+ ; PWD=.* ; USER=(\\S+) ; COMMAND=.*",
+        "event_type": "privilege_escalation",
+        "log_category": "security",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "sudo",
+        "event_id": "sudo_session_close",
+        "event_cn": "Sudo会话关闭",
+        "regex": "(?i)sudo\\[\\d+\\]: session closed for user (\\S+)",
+        "event_type": "privilege_escalation",
+        "log_category": "security",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "sudo",
+        "event_id": "sudo_incorrect_pwd",
+        "event_cn": "Sudo密码错误",
+        "regex": "(?i)sudo\\[\\d+\\]: (\\S+) : incorrect password ; TTY=\\S+ ; PWD=.*",
+        "event_type": "privilege_escalation_failure",
+        "log_category": "security",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    {
+        "program": "sudo",
+        "event_id": "sudo_command_denied",
+        "event_cn": "Sudo命令被拒绝",
+        "regex": "(?i)sudo\\[\\d+\\]: (\\S+) : command not allowed ; TTY=\\S+ ; PWD=.* ; USER=(\\S+) ; COMMAND=.*",
+        "event_type": "privilege_escalation_failure",
+        "log_category": "security",
+        "level": 5,
+        "level_cn": "中高"
+    },
 
-        # 3. 定时任务事件（cron设施）
-        {
-            "event_id": "cron-exec-success",
-            "event_type": "定时任务",
-            "log_category": "cron",
-            "log_category_cn": syslog_facility_map['cron']['cn'],
-            "log_source": "CRON",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Cron job executed (path: /etc/cron.hourly)",
-            "description_cn": "定时任务执行成功（路径：/etc/cron.hourly）"
-        },
-        {
-            "event_id": "cron-exec-failure",
-            "event_type": "定时任务",
-            "log_category": "cron",
-            "log_category_cn": syslog_facility_map['cron']['cn'],
-            "log_source": "CRON",
-            "level": "Error",
-            "level_cn": "错误",
-            "description": "Cron job failed (script: /home/user/backup.sh)",
-            "description_cn": "定时任务执行失败（脚本：/home/user/backup.sh）"
-        },
+    # 内核相关事件
+    {
+        "program": "kernel",
+        "event_id": "kernel_out_of_memory",
+        "event_cn": "内核内存不足",
+        "regex": "(?i)kernel: Out of memory: Kill process (\\d+) \\((\\S+)\\) score \\d+ or sacrifice child",
+        "event_type": "resource_issue",
+        "log_category": "system",
+        "level": 5,
+        "level_cn": "中高"
+    },
+    {
+        "program": "kernel",
+        "event_id": "kernel_disk_error",
+        "event_cn": "磁盘I/O错误",
+        "regex": "(?i)kernel: (\\S+): (I/O error|failed command): (\\S+)",
+        "event_type": "hardware_issue",
+        "log_category": "system",
+        "level": 6,
+        "level_cn": "高"
+    },
+    {
+        "program": "kernel",
+        "event_id": "kernel_firewall_drop",
+        "event_cn": "内核防火墙丢弃数据包",
+        "regex": "(?i)kernel: \\[\\d+\\.\\d+\\] (\\S+): IN=(\\S+) OUT=(\\S+) SRC=(\\S+) DST=(\\S+) .* DROP",
+        "event_type": "network_block",
+        "log_category": "network",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "kernel",
+        "event_id": "kernel_new_device",
+        "event_cn": "检测到新设备",
+        "regex": "(?i)kernel: (\\S+): new (disk|usb device|network interface) (\\S+)",
+        "event_type": "hardware_change",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
 
-        # 4. 守护进程事件（daemon设施）
-        {
-            "event_id": "systemd-start",
-            "event_type": "服务管理",
-            "log_category": "daemon",
-            "log_category_cn": syslog_facility_map['daemon']['cn'],
-            "log_source": "systemd",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Service started (name: nginx, PID: 1234)",
-            "description_cn": "服务启动成功（名称：nginx，进程ID：1234）"
-        },
-        {
-            "event_id": "systemd-crash",
-            "event_type": "服务管理",
-            "log_category": "daemon",
-            "log_category_cn": syslog_facility_map['daemon']['cn'],
-            "log_source": "systemd",
-            "level": "Error",
-            "level_cn": "错误",
-            "description": "Service crashed (name: mysql, exit code: 1)",
-            "description_cn": "服务崩溃（名称：mysql，退出码：1）"
-        },
+    # 用户管理相关事件
+    {
+        "program": "useradd",
+        "event_id": "useradd_create",
+        "event_cn": "创建用户",
+        "regex": "(?i)useradd\\[\\d+\\]: new user: name=(\\S+), UID=(\\d+), GID=(\\d+), home=(\\S+)",
+        "event_type": "account_management",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "userdel",
+        "event_id": "userdel_remove",
+        "event_cn": "删除用户",
+        "regex": "(?i)userdel\\[\\d+\\]: delete user '(\\S+)'",
+        "event_type": "account_management",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "passwd",
+        "event_id": "passwd_change",
+        "event_cn": "修改用户密码",
+        "regex": "(?i)passwd\\[\\d+\\]: changing password for user (\\S+)",
+        "event_type": "account_management",
+        "log_category": "security",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "usermod",
+        "event_id": "usermod_modify",
+        "event_cn": "修改用户属性",
+        "regex": "(?i)usermod\\[\\d+\\]: modify user '(\\S+)'",
+        "event_type": "account_management",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "groupadd",
+        "event_id": "groupadd_create",
+        "event_cn": "创建用户组",
+        "regex": "(?i)groupadd\\[\\d+\\]: new group: name=(\\S+), GID=(\\d+)",
+        "event_type": "account_management",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
 
-        # 5. 防火墙事件（syslog设施）
-        {
-            "event_id": "firewalld-block",
-            "event_type": "防火墙",
-            "log_category": "syslog",
-            "log_category_cn": syslog_facility_map['syslog']['cn'],
-            "log_source": "firewalld",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Connection blocked (source: 10.0.0.5, port: 8080)",
-            "description_cn": "连接被防火墙阻止（来源：10.0.0.5，端口：8080）"
-        },
-        {
-            "event_id": "firewalld-allow",
-            "event_type": "防火墙",
-            "log_category": "syslog",
-            "log_category_cn": syslog_facility_map['syslog']['cn'],
-            "log_source": "firewalld",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Connection allowed (source: 192.168.1.0/24, port: 22)",
-            "description_cn": "连接被防火墙允许（来源：192.168.1.0/24，端口：22）"
-        },
+    # 防火墙相关事件
+    {
+        "program": "iptables",
+        "event_id": "iptables_drop_packet",
+        "event_cn": "防火墙丢弃数据包",
+        "regex": "(?i)iptables\\[\\d+\\]: DROP (IN=(\\S+) )?SRC=(\\S+) (DST=(\\S+) )?(DPT=(\\d+) )?",
+        "event_type": "network_block",
+        "log_category": "network",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "iptables",
+        "event_id": "iptables_accept_packet",
+        "event_cn": "防火墙允许数据包",
+        "regex": "(?i)iptables\\[\\d+\\]: ACCEPT (IN=(\\S+) )?SRC=(\\S+) (DST=(\\S+) )?(DPT=(\\d+) )?",
+        "event_type": "network_allow",
+        "log_category": "network",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "firewalld",
+        "event_id": "firewalld_rule_change",
+        "event_cn": "防火墙规则变更",
+        "regex": "(?i)firewalld\\[\\d+\\]: (Adding|Removing) rule '(.*)'",
+        "event_type": "configuration_change",
+        "log_category": "security",
+        "level": 3,
+        "level_cn": "中"
+    },
 
-        # 6. 本地设施事件（local0-local7）
-        {
-            "event_id": "app-log-local0",
-            "event_type": "应用日志",
-            "log_category": "local0",
-            "log_category_cn": syslog_facility_map['local0']['cn'],
-            "log_source": "app-server",
-            "level": "Information",
-            "level_cn": "信息",
-            "description": "Application started (version: 2.1.0)",
-            "description_cn": "应用启动成功（版本：2.1.0）"
-        }
-    ]
+    # 系统登录相关事件
+    {
+        "program": "login",
+        "event_id": "login_success",
+        "event_cn": "本地登录成功",
+        "regex": "(?i)login\\[\\d+\\]: (pam_unix\\(login:session\\): session opened for user (\\S+) by (\\S+)|USER=(\\S+) LOGIN=\\S+)",
+        "event_type": "authentication",
+        "log_category": "security",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "login",
+        "event_id": "login_failure",
+        "event_cn": "本地登录失败",
+        "regex": "(?i)login\\[\\d+\\]: FAILED LOGIN (\\d+) FROM (\\S+) FOR (\\S+), (Authentication failure|invalid user)",
+        "event_type": "authentication_failure",
+        "log_category": "security",
+        "level": 3,
+        "level_cn": "中"
+    },
+    {
+        "program": "systemd-logind",
+        "event_id": "session_start",
+        "event_cn": "用户会话开始",
+        "regex": "(?i)systemd-logind\\[\\d+\\]: New session (\\S+) of user (\\S+)",
+        "event_type": "session_management",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "systemd-logind",
+        "event_id": "session_end",
+        "event_cn": "用户会话结束",
+        "regex": "(?i)systemd-logind\\[\\d+\\]: Removed session (\\S+)",
+        "event_type": "session_management",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
 
+    # 系统服务相关事件
+    {
+        "program": "systemd",
+        "event_id": "service_start",
+        "event_cn": "系统服务启动",
+        "regex": "(?i)systemd\\[\\d+\\]: Started (\\S+)\\.(service|socket)",
+        "event_type": "service_start",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "systemd",
+        "event_id": "service_failed",
+        "event_cn": "系统服务启动失败",
+        "regex": "(?i)systemd\\[\\d+\\]: (\\S+)\\.(service|socket) failed (with result '\\S+')?",
+        "event_type": "service_failure",
+        "log_category": "system",
+        "level": 5,
+        "level_cn": "中高"
+    },
+    {
+        "program": "systemd",
+        "event_id": "service_stop",
+        "event_cn": "系统服务停止",
+        "regex": "(?i)systemd\\[\\d+\\]: Stopped (\\S+)\\.(service|socket)",
+        "event_type": "service_stop",
+        "log_category": "system",
+        "level": 2,
+        "level_cn": "中低"
+    },
 
+    # 磁盘空间相关事件
+    {
+        "program": "df",
+        "event_id": "disk_space_low",
+        "event_cn": "磁盘空间不足",
+        "regex": "(?i)df\\[\\d+\\]: (\\S+)\\s+\\d+% full",
+        "event_type": "resource_issue",
+        "log_category": "system",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    {
+        "program": "kernel",
+        "event_id": "disk_full",
+        "event_cn": "磁盘空间满",
+        "regex": "(?i)kernel: (\\S+): write failed, filesystem is full",
+        "event_type": "resource_issue",
+        "log_category": "system",
+        "level": 6,
+        "level_cn": "高"
+    },
+
+    # 安全相关事件
+    {
+        "program": "auditd",
+        "event_id": "audit_rule_change",
+        "event_cn": "审计规则变更",
+        "regex": "(?i)auditd\\[\\d+\\]: (Adding|Deleting) audit rule '(.*)'",
+        "event_type": "security_change",
+        "log_category": "security",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    {
+        "program": "pam_unix",
+        "event_id": "password_expire",
+        "event_cn": "用户密码过期",
+        "regex": "(?i)pam_unix\\(\\S+\\): password for '(\\S+)' will expire in (\\d+) days",
+        "event_type": "account_management",
+        "log_category": "security",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    # 内核USB设备错误（匹配msg3）
+    {
+        "program": "kernel",
+        "event_id": "kernel_usb_error",
+        "event_cn": "USB设备错误",
+        "regex": "(?i)kernel\\[\\d+\\]: USB device (not accepting address|failed to initialize) (\\d+), error (-\\d+)",
+        "event_type": "hardware_issue",
+        "log_category": "system",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    
+    # CRON任务执行（匹配msg4）
+    {
+        "program": "CRON",
+        "event_id": "cron_job_executed",
+        "event_cn": "CRON定时任务执行",
+        "regex": "(?i)CRON\\[\\d+\\]: \\((\\S+)\\) CMD \\((.*?)\\)",
+        "event_type": "scheduled_task",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
+    
+    # 防火墙拒绝连接（匹配msg5）
+    {
+        "program": "firewalld",
+        "event_id": "firewalld_reject_packet",
+        "event_cn": "防火墙拒绝数据包",
+        "regex": "(?i)firewalld\\[\\d+\\]: REJECT: IN=(\\S+) OUT=(\\S+) MAC=(\\S+) SRC=(\\S+) DST=(\\S+)",
+        "event_type": "network_block",
+        "log_category": "network",
+        "level": 3,
+        "level_cn": "中"
+    },
+    
+    # Nginx访问日志（匹配msg6）
+    {
+        "program": "nginx",
+        "event_id": "nginx_request_processed",
+        "event_cn": "Nginx处理HTTP请求",
+        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \"(\\S+) (\\S+) (\\S+)\" (\\d+) (\\d+)",
+        "event_type": "web_access",
+        "log_category": "application",
+        "level": 1,
+        "level_cn": "低"
+    },
+    
+    # Nginx错误日志补充
+    {
+        "program": "nginx",
+        "event_id": "nginx_error_occurred",
+        "event_cn": "Nginx发生错误",
+        "regex": "(?i)nginx\\[\\d+\\]: \\S+ \\[error\\] (\\d+)#(\\d+): (.*)",
+        "event_type": "application_error",
+        "log_category": "application",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    
+    # CRON错误补充
+    {
+        "program": "CRON",
+        "event_id": "cron_job_failed",
+        "event_cn": "CRON定时任务失败",
+        "regex": "(?i)CRON\\[\\d+\\]: \\((\\S+)\\) ERROR \\((.*)\\)",
+        "event_type": "scheduled_task_failure",
+        "log_category": "system",
+        "level": 5,
+        "level_cn": "中高"
+    },
+    {
+        "program": "CRON",
+        "event_id": "cron_session_open",
+        "event_cn": "CRON会话开启",
+        "regex": "(?i)CRON\\[\\d+\\]: pam_unix\\(cron:session\\): session opened for user (\\S+) by \\(uid=\\d+\\)",
+        "event_type": "scheduled_task",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "CRON",
+        "event_id": "cron_session_closed",
+        "event_cn": "CRON会话关闭",
+        "regex": "(?i)CRON\\[\\d+\\]: pam_unix\\(cron:session\\): session closed for user (\\S+)",
+        "event_type": "scheduled_task",
+        "log_category": "system",
+        "level": 1,
+        "level_cn": "低"
+    }
+]

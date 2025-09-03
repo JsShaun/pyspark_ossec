@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 # from .msg import message_udf # 示例pandas_udf使用
-
+from .msgevent import envent_udf
 
 
 
@@ -16,7 +16,7 @@ class NewSpark:
     def get_spark(self):
         "注册自定义udf"
         # self.spark.udf.register("message_udf",message_udf)
-
+        # self.spark.udf.register("envent_udf",envent_udf)
         return self.spark
         
 

@@ -12,53 +12,28 @@ class OSSEC:
         self.event_mapping = self.spark.createDataFrame(get_event_mapping()).createOrReplaceTempView('tbevent')
         
   
-        
-        # 3. 定义事件匹配规则（与get_event_mapping()的event_id对应）
-        self.event_rules = [
-            # (进程名正则, 日志内容关键词正则, 目标event_id)
-            (r"sshd", r"Accepted password for", "sshd-success"),
-            (r"sshd", r"Failed password for", "sshd-failure"),
-            (r"sudo", r"session opened for user root", "sudo-success"),
-            (r"sudo", r"authentication failure", "sudo-failure"),
-            (r"kernel", r"USB device not accepting address", "kernel-usb-error"),
-            (r"kernel", r"Disk I/O error|bad sector", "kernel-disk-warning"),
-            (r"kernel", r"network interface .* up", "kernel-network-up"),
-            (r"CRON", r"CMD \(cd / && run-parts --report /etc/cron\.", "cron-exec-success"),
-            (r"CRON", r"ERROR|failed to execute", "cron-exec-failure"),
-            (r"systemd", r"Service started|Started .* service", "systemd-start"),
-            (r"systemd", r"Service crashed|Failed with result", "systemd-crash"),
-            (r"firewalld", r"REJECT|blocked", "firewalld-block"),
-            (r"firewalld", r"ACCEPT|allowed", "firewalld-allow"),
-            (r"app-server", r"Application started|Started successfully", "app-log-local0")
-        ]
-
+      
     def new_df_msg(self, msglist:list):
         df = self.spark.createDataFrame(msglist)
-        # 2. 关键正则表达式：精准匹配主机名（位于时间和“进程名[PID]”之间）
-        # 日志格式拆解：<优先级> 时间 主机名 进程名[PID]: 日志内容
-        # 正则分组说明：
-        # 1: 优先级（不提取）, 2: 时间（不提取）, 3: 主机名（核心：位于时间和进程名[PID]之间）
-        # 4: 进程名（用于匹配event_id）, 5: 日志内容（用于匹配event_id）
-        syslog_pattern = r"""
-        ^<(\d+)>                # 优先级
-            \s+([A-Za-z]{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})  # 时间
-            \s+(\S+)                # 主机名
-            \s+([^\:]+)             # 完整程序名（含PID，到冒号前结束）
-            :.*                     # 剩余内容（不提取）
-        """
+        syslog_pattern = r"""(\S+)\s+(\S+)\[\d+\]:\s*(.*)"""
         
-        # 3. 提取核心字段（主机名、进程名、日志内容）
-        parsed_df = df.select(
+        # 提取核心字段hostname(主机名)、program（程序）、日志记录（msg）
+        df.select(
             col("id"),
-            col("value"),
-            regexp_extract(col("value"), syslog_pattern, 1).alias("value1"),
-            regexp_extract(col("value"), syslog_pattern, 2).alias("value2"),
-            regexp_extract(col("value"), syslog_pattern, 3).alias("value3"),
-            regexp_extract(col("value"), syslog_pattern, 4).alias("value4"),
-        )
+            col("value").alias("original_msg"),
+            regexp_extract(col("value"), syslog_pattern, 1).alias("hostname"),
+            regexp_extract(col("value"), syslog_pattern, 2).alias("program"),
+            regexp_extract(col("value"), syslog_pattern, 3).alias("msg"),
+        ).createOrReplaceTempView('tbmsg')
+
+
+        self.spark.sql('''
+        select *
+        from tbmsg tb1
+        left join tbevent tb2 on tb1.original_msg RLIKE tb2.regex
+        ''').show()
+
         
-        
-        parsed_df.show()
 
 
 if __name__ == "__main__":

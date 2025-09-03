@@ -49,7 +49,7 @@ class OSSEC:
             col('level_cn'),
             col('event_time'),
             col('log_category'),
-            col('description_cn')
+            col('event_cn')
         )
 
     
