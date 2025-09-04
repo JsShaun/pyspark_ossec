@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  spark-master:
+    image: pyspark:4.0
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8080
+      - SPARK_CONNECT_PORT=15002
+   
+    ports:
+      - "8080:8080"
+      - "7077:7077"
+      - "4040:4040"
+      - "15002:15002"
+
+   
+
+    working_dir: /opt/spark
+    command: >
+      bash -c "
+        ./sbin/start-master.sh &&
+        ./sbin/start-connect-server.sh &&
+        sleep infinity
+      "
+
+    networks:
+      busynet:
+        aliases:
+          - spark-master
+
+networks:
+  busynet:
+    external: true
+    name: busynet 

@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  spark-worker:
+    image: pyspark:4.0
+    container_name: spark-worker
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      - SPARK_WORKER_WEBUI_PORT=8081
+    ports:
+      - "8081:8081"
+
+    working_dir: /opt/spark
+    command: >
+      bash -c "
+        ./sbin/start-worker.sh spark://spark-master:7077 &&
+        sleep infinity
+      "
+
+    networks:
+      busynet:
+        aliases:
+          - spark-worker
+
+networks:
+  busynet:
+    external: true
+    name: busynet 
