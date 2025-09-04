@@ -397,19 +397,19 @@ def get_event_mapping():
         "program": "firewalld",
         "event_id": "firewalld_reject_packet",
         "event_cn": "防火墙拒绝数据包",
-        "regex": "(?i)firewalld\\[\\d+\\]: REJECT: IN=(\\S+) OUT=(\\S+) MAC=(\\S+) SRC=(\\S+) DST=(\\S+)",
+        "regex": ".*firewalld\[\\d+\]: REJECT:.*",
         "event_type": "network_block",
         "log_category": "network",
         "level": 3,
         "level_cn": "中"
     },
-    
+        
     # Nginx访问日志（匹配msg6）
     {
         "program": "nginx",
         "event_id": "nginx_request_processed",
         "event_cn": "Nginx处理HTTP请求",
-        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \"(\\S+) (\\S+) (\\S+)\" (\\d+) (\\d+)",
+        "regex": r"(?i)nginx\\[\\d+\\]: (\\S+) - - \"(\\S+) (\\S+) (\\S+)\" (\\d+) (\\d+)",
         "event_type": "web_access",
         "log_category": "application",
         "level": 1,
@@ -423,6 +423,155 @@ def get_event_mapping():
         "event_cn": "Nginx发生错误",
         "regex": "(?i)nginx\\[\\d+\\]: \\S+ \\[error\\] (\\d+)#(\\d+): (.*)",
         "event_type": "application_error",
+        "log_category": "application",
+        "level": 4,
+        "level_cn": "中高"
+    },# -------------------------- 新增Web日志规则 --------------------------
+    # 1. Nginx 增强规则
+    {
+        "program": "nginx",
+        "event_id": "nginx_static_resource",
+        "event_cn": "Nginx静态资源请求",
+        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"GET (.*?\\.(js|css|jpg|png|gif)) HTTP/\\d+\\.\\d+\" 200 (\\d+)",
+        "event_type": "web_access",
+        "log_category": "application",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "nginx",
+        "event_id": "nginx_reverse_proxy",
+        "event_cn": "Nginx反向代理请求",
+        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?) HTTP/\\d+\\.\\d+\" 200 (\\d+) \"-\" \"(.*?)\" \"(\\S+)\"",
+        "event_type": "web_proxy",
+        "log_category": "application",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "nginx",
+        "event_id": "nginx_sensitive_path",
+        "event_cn": "Nginx敏感路径访问",
+        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (/admin|/login|/api|/manage)/.* HTTP/\\d+\\.\\d+\" (\\d+)",
+        "event_type": "web_security",
+        "log_category": "application",
+        "level": 2,
+        "level_cn": "中低"
+    },
+    {
+        "program": "nginx",
+        "event_id": "nginx_abnormal_status",
+        "event_cn": "Nginx异常状态码",
+        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?) HTTP/\\d+\\.\\d+\" (403|404|500|503) (\\d+)",
+        "event_type": "web_error",
+        "log_category": "application",
+        "level": 4,
+        "level_cn": "中高"
+    },
+
+    # 2. Apache 日志规则
+    {
+        "program": "apache",
+        "event_id": "apache_access",
+        "event_cn": "Apache访问日志",
+        "regex": "(?i)apache\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?) HTTP/\\d+\\.\\d+\" (\\d+) (\\d+) \"(.*?)\" \"(.*?)\"",
+        "event_type": "web_access",
+        "log_category": "application",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "apache",
+        "event_id": "apache_error",
+        "event_cn": "Apache错误日志",
+        "regex": "(?i)apache\\[\\d+\\]: \\[error\\] \\[client (\\S+)\\] (.*?)(File does not exist|Permission denied): (.*?)",
+        "event_type": "web_error",
+        "log_category": "application",
+        "level": 4,
+        "level_cn": "中高"
+    },
+    {
+        "program": "apache",
+        "event_id": "apache_cgi_exec",
+        "event_cn": "Apache CGI脚本执行",
+        "regex": "(?i)apache\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?\\.cgi|.*?\\.pl) HTTP/\\d+\\.\\d+\" 200 (\\d+)",
+        "event_type": "web_exec",
+        "log_category": "application",
+        "level": 2,
+        "level_cn": "中低"
+    },
+
+    # 3. Tomcat 日志规则
+    {
+        "program": "tomcat",
+        "event_id": "tomcat_access",
+        "event_cn": "Tomcat访问日志",
+        "regex": "(?i)tomcat\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?) HTTP/\\d+\\.\\d+\" (\\d+) (\\d+) (\\d+)",
+        "event_type": "web_access",
+        "log_category": "application",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "tomcat",
+        "event_id": "tomcat_application_error",
+        "event_cn": "Tomcat应用异常",
+        "regex": "(?i)tomcat\\[\\d+\\]: SEVERE: (.*?)Exception in (servlet|filter) (.*?) for context path (.*?)",
+        "event_type": "web_application_error",
+        "log_category": "application",
+        "level": 5,
+        "level_cn": "中高"
+    },
+
+    # 4. 通用Web安全场景
+    {
+        "program": "nginx|apache|tomcat",
+        "event_id": "web_unauthorized",
+        "event_cn": "Web未授权访问(401)",
+        "regex": "(?i)(nginx|apache|tomcat)\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?) HTTP/\\d+\\.\\d+\" 401 (\\d+)",
+        "event_type": "web_security",
+        "log_category": "application",
+        "level": 3,
+        "level_cn": "中"
+    },
+    {
+        "program": "nginx|apache",
+        "event_id": "web_gateway_error",
+        "event_cn": "Web网关错误(502)",
+        "regex": "(?i)(nginx|apache)\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (.*?) HTTP/\\d+\\.\\d+\" 502 (\\d+)",
+        "event_type": "web_error",
+        "log_category": "application",
+        "level": 5,
+        "level_cn": "中高"
+    },
+    {
+        "program": "nginx|apache",
+        "event_id": "web_sensitive_file",
+        "event_cn": "Web敏感文件访问",
+        "regex": "(?i)(nginx|apache)\\[\\d+\\]: (\\S+) - - \\[(.*?)\\] \"(\\S+) (/robots.txt|/.htaccess|/.git|/config.php) HTTP/\\d+\\.\\d+\" (\\d+)",
+        "event_type": "web_security",
+        "log_category": "application",
+        "level": 3,
+        "level_cn": "中"
+    },
+
+    # 原有Nginx基础规则（保留并补充）
+    {
+        "program": "nginx",
+        "event_id": "nginx_request_processed",
+        "event_cn": "Nginx处理HTTP请求",
+        "regex": "(?i)nginx\\[\\d+\\]: (\\S+) - - \"(\\S+) (\\S+) (\\S+)\" (\\d+) (\\d+)",
+        "event_type": "web_access",
+        "log_category": "application",
+        "level": 1,
+        "level_cn": "低"
+    },
+    {
+        "program": "nginx",
+        "event_id": "nginx_error_occurred",
+        "event_cn": "Nginx发生错误",
+        "regex": "(?i)nginx\\[\\d+\\]: \\S+ \\[error\\] (\\d+)#(\\d+): (.*)",
+        "event_type": "web_error",
         "log_category": "application",
         "level": 4,
         "level_cn": "中高"
