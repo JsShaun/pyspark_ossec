@@ -1,4 +1,4 @@
-from pyspark.sql.functions import regexp_extract, col
+from pyspark.sql.functions import regexp_extract, col, broadcast
 from regular.windows_event_mapping import get_event_mapping
 from hpspark import NewSpark
 
@@ -7,7 +7,8 @@ class OSSEC:
     def __init__(self):
         # 初始化SparkSession
         self.spark = NewSpark(url="sc://localhost:15002",name="pandasApp").get_spark()
-        self.event_mapping = self.spark.createDataFrame(get_event_mapping()).createOrReplaceTempView('tbevent')
+        self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
+        self.broadcasted_event_df.createOrReplaceTempView('tbevent')  
         
 
 
@@ -33,7 +34,6 @@ class OSSEC:
         ).createOrReplaceTempView('tbmsg')
 
 
-
     def df_parsed_logs(self):
         parsed_logs = self.spark.sql("""
         select *
@@ -43,13 +43,14 @@ class OSSEC:
             col('id'),
             col('hostname'),
             col('tb1.event_id'),
+            col('event_cn'),
             col('event_source'),
             col('event_type'),
             col('level'),
             col('level_cn'),
             col('event_time'),
             col('log_category'),
-            col('event_cn')
+            
         )
 
     

@@ -1,6 +1,4 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import regexp_extract, col, when, lit, concat
-from pyspark.sql.types import StringType
+from pyspark.sql.functions import regexp_extract, col, broadcast
 from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
 from hpspark import NewSpark
 
@@ -9,10 +7,10 @@ class OSSEC:
     def __init__(self):
         # 1. 初始化SparkSession
         self.spark = NewSpark(url="sc://localhost:15002",name="pandasApp").get_spark()
-        self.event_mapping = self.spark.createDataFrame(get_event_mapping()).createOrReplaceTempView('tbevent')
-        
-  
-      
+        self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
+        self.broadcasted_event_df.createOrReplaceTempView('tbevent')
+     
+ 
     def new_df_msg(self, msglist:list):
         df = self.spark.createDataFrame(msglist)
         syslog_pattern = r"""(\S+)\s+(\S+)\[\d+\]:\s*(.*)"""
@@ -33,8 +31,6 @@ class OSSEC:
         left join tbevent tb2 on tb1.original_msg RLIKE tb2.regex
         ''').show()
 
-        
-
 
 if __name__ == "__main__":
     msg1 = "Sep 02 08:30:15 server01 sshd[1234]: Accepted password for jdoe from 192.168.1.100 port 54321 ssh2"
@@ -47,7 +43,7 @@ if __name__ == "__main__":
     msglist.append({'value':msg1,'id':1})
     msglist.append({'value':msg2,'id':2})
     msglist.append({'value':msg3,'id':3})
-    msglist.append({'value':msg4,'id':4})
+    # msglist.append({'value':msg4,'id':4})
     msglist.append({'value':msg5,'id':5})
     msglist.append({'value':msg6,'id':6})
    
