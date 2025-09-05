@@ -8,17 +8,19 @@ class OSSEC:
         # 初始化SparkSession
         self.spark = NewSpark(url="sc://localhost:15002",name="pandasApp").get_spark()
         self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
-        self.broadcasted_event_df.createOrReplaceTempView('tbevent')  
+         
         
 
 
     def new_df_msg(self,msglist:list):
+        self.broadcasted_event_df.createOrReplaceTempView('tbevent') 
         df = self.spark.createDataFrame(msglist)
         # 定义基本Windows事件日志的正则表达式模式
         base_pattern = r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (\S+) MSWinEventLog: (\d+), ([^,]+), (\d+), (\d{2}:\d{2}:\d{2} \d{2}/\d{2}/\d{4}), (\d+), ([^,]+), ([^,]*), ([^,]*), ([^,]+), '
         # 提取基本字段
         df.select(
             col('id'),
+            col("value").alias("original_msg"),
             regexp_extract(col("value"), base_pattern, 1).alias("receive_time"),
             regexp_extract(col("value"), base_pattern, 2).alias("hostname"),
             regexp_extract(col("value"), base_pattern, 3).alias("event_type_code"),
@@ -30,7 +32,6 @@ class OSSEC:
             regexp_extract(col("value"), base_pattern, 9).alias("event_category"),
             regexp_extract(col("value"), base_pattern, 10).alias("event_level"),
             regexp_extract(col("value"), base_pattern, 11).alias("computer_name"),
-            col("value").alias("raw_message")
         ).createOrReplaceTempView('tbmsg')
 
 
@@ -50,10 +51,7 @@ class OSSEC:
             col('level_cn'),
             col('event_time'),
             col('log_category'),
-            
         )
-
-    
         parsed_logs.show()
 
 

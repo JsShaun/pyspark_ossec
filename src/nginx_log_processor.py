@@ -8,14 +8,14 @@ class OSSEC:
         # 1. 初始化SparkSession
         self.spark = NewSpark(url="sc://localhost:15002",name="pandasApp").get_spark()
         self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
-        self.broadcasted_event_df.createOrReplaceTempView('tbevent')
+        
      
  
     def new_df_msg(self, msglist:list):
+        self.broadcasted_event_df.createOrReplaceTempView('tbevent')
         df = self.spark.createDataFrame(msglist)
-        syslog_pattern = r"(\S+)\s+(\S+)\[\d+\]:\s*(\d+\.\d+\.\d+\.\d+)\s*(.*)"
-        
         # 提取核心字段hostname(主机名)、program（程序）、日志记录（msg）
+        syslog_pattern = r"(\S+)\s+(\S+)\[\d+\]:\s*(\d+\.\d+\.\d+\.\d+)\s*(.*)"
         df.select(
             col("id"),
             col("value").alias("original_msg"),
