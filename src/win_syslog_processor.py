@@ -6,11 +6,8 @@ from hpspark import NewSpark
 class OSSEC:
     def __init__(self):
         # 初始化SparkSession
-        self.spark = NewSpark(url="sc://localhost:15002",name="pandasApp").get_spark()
+        self.spark = NewSpark(url="sc://localhost:15002",name="syslogProcessApp").get_spark()
         self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
-         
-        
-
 
     def new_df_msg(self,msglist:list):
         self.broadcasted_event_df.createOrReplaceTempView('tbevent') 
@@ -21,6 +18,7 @@ class OSSEC:
         df.select(
             col('id'),
             col("value").alias("original_msg"),
+            col('timestamp'),
             regexp_extract(col("value"), base_pattern, 1).alias("receive_time"),
             regexp_extract(col("value"), base_pattern, 2).alias("hostname"),
             regexp_extract(col("value"), base_pattern, 3).alias("event_type_code"),

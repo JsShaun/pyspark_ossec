@@ -26,3 +26,7 @@
 - pip3 install confluent-kafka
 
 
+### 
+- pip3 install clickhouse-driver
+
+

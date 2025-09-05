@@ -6,10 +6,8 @@ from hpspark import NewSpark
 class OSSEC:
     def __init__(self):
         # 1. 初始化SparkSession
-        self.spark = NewSpark(url="sc://localhost:15002",name="pandasApp").get_spark()
+        self.spark = NewSpark(url="sc://localhost:15002",name="syslogProcessApp").get_spark()
         self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
-        
-     
  
     def new_df_msg(self, msglist:list):
         self.broadcasted_event_df.createOrReplaceTempView('tbevent')
@@ -19,6 +17,7 @@ class OSSEC:
         df.select(
             col("id"),
             col("value").alias("original_msg"),
+            col('timestamp'),
             regexp_extract(col("value"), syslog_pattern, 1).alias("hostname"),
             regexp_extract(col("value"), syslog_pattern, 2).alias("program"),
             regexp_extract(col("value"), syslog_pattern, 3).alias("client"),
@@ -39,7 +38,7 @@ if __name__ == "__main__":
     msg3 = """Sep 06 10:15:30 web01 nginx[28456]: 198.51.100.78 - - [06/Sep/2025:10:15:30 +0800] "GET /search?query=手机' UNION SELECT username,password FROM users-- HTTP/1.1" 400 189 "-" "curl/7.68.0"""
     msg4 = """Sep 06 10:20:12 web01 nginx[28456]: 203.0.113.42 - - [06/Sep/2025:10:20:12 +0800] "POST /comment HTTP/1.1" 200 256 "https://example.com/article" "Mozilla/5.0" Request Body: content=<script>alert(document.cookie)</script>"""
     msg5 = """Sep 06 10:25:45 web01 nginx[28456]: 192.0.2.105 - - [06/Sep/2025:10:25:45 +0800] "GET /file?path=/var/log/nginx/access.log;cat /etc/passwd HTTP/1.1" 500 210 "-" "Wget/1.21"""
-    msg6= """Sep 06 10:30:22 web01 nginx[28456]: 185.199.108.153 - - [06/Sep/2025:10:30:22 +0800] "GET /static/../../../../etc/shadow HTTP/1.1" 403 162 "-" "Mozilla/5.0"""
+    msg6 = """Sep 06 10:30:22 web01 nginx[28456]: 185.199.108.153 - - [06/Sep/2025:10:30:22 +0800] "GET /static/../../../../etc/shadow HTTP/1.1" 403 162 "-" "Mozilla/5.0"""
     msg7 = """Sep 07 09:20:18 web01 nginx[28456]: 192.0.2.110 - - [07/Sep/2025:09:20:18 +0800] "POST /login HTTP/1.1" 200 320 "https://example.com/login" "Chrome/116.0.0.0" Request Body: username=admin' AND (SELECT 1 FROM (SELECT COUNT(*),CONCAT((SELECT version()),FLOOR(RAND(0)*2))x FROM information_schema.tables GROUP BY x)a)-- &password=123"""
 
 

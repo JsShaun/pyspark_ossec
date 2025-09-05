@@ -1,6 +1,7 @@
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import broadcast
 # from .msg import message_udf # 示例pandas_udf使用
-from .msgevent import envent_udf
+# from .msgevent import envent_udf
 
 
 
@@ -12,7 +13,6 @@ class NewSpark:
         "sc://localhost:15002"
         self.spark = SparkSession.builder.remote(url).appName(name).getOrCreate()
         
-
     def get_spark(self):
         "注册自定义udf"
         # self.spark.udf.register("message_udf",message_udf)
