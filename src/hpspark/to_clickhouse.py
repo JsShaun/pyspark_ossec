@@ -27,13 +27,25 @@ except Exception as e:
 
 
 @pandas_udf(BooleanType())
-def envent_udf(original_msg:pd.Series) -> pd.Series:
+def envent_udf(df:pd.DataFrame) -> pd.Series:
 
     insert_sql = """INSERT INTO `default`.msg_event
     (original_msg, hostname, program, event_cn, event_type, `level`, level_cn, log_category, `timestamp`)
     VALUES(%(original_msg)s, %(hostname)s, %(program)s, %(event_cn)s, %(event_type)s, %(level)s, %(level_cn)s, %(log_category)s, %(timestamp)s);"""
 
-
+    batch_data = pd.DataFrame(
+        {
+            "original_msg" : df['original_msg'],
+            "hostname" : df['hostname'],
+            "program" : df['program'],
+            "event_cn" : df['event_cn'],
+            "event_type" : df['event_type'],
+            "level" : df['level'],
+            "level_cn" : df['level_cn'],
+            "log_category" : df['log_category'],
+            "timestamp" : df['timestamp'],
+        }
+    ).to_dict(orient='records')
 
 
     client.execute(insert_sql, batch_data)
