@@ -29,10 +29,10 @@ class  KafkaProducer():
     def send(self,topic,partition,messages):
         try:
             for data in messages:
-                message = json.dumps(data).encode('utf-8')
+                msg = json.dumps(data).encode('utf-8')
                 self.producer.produce(
                     topic=topic,
-                    value=message,
+                    value=msg,
                     partition=partition,
                     on_delivery=self.delivery_report
                 )

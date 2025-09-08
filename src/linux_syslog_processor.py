@@ -1,65 +1,33 @@
 from pyspark.sql.functions import regexp_extract, col, broadcast, to_json, struct
 from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
 from hpspark import NewSpark
-from helper import KafkaConsumer,KafkaProducer
-from clickhouse_driver import Client
+# from helper import KafkaConsumer,KafkaProducer
 
 
-def write_to_clickhouse(partition):
-    # 每个分区创建一次ClickHouse连接
-    client = Client(
-        host="192.168.64.1",
-        port=9000,
-        user="admin",
-        password="Ch@ng3Me!2025",
-        database="default",
-    )
 
-    batch_data = list(partition)
-    # 执行插入
-    insert_sql = """
-    INSERT INTO `default`.msg_event(original_msg, hostname, program, event_cn, event_type, `level`, level_cn, log_category, `timestamp`)
-    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """
-    client.execute(insert_sql, batch_data)
+def write_to_clickhouse(msglist):
+    from helper import KafkaConsumer,KafkaProducer
+    p1 = KafkaProducer(bootstrap_servers = 'localhost:9092')
+    p1.send(topic='linux_result', partition=0, messages=msglist)
 
 
-    # client = Client(
 
-    #     host="192.168.64.1",
-    #     port=9000,
-    #     user="admin",
-    #     password="Ch@ng3Me!2025",
-    #     database="default",
-    # )
-    
-    # try:
-    #     # 定义 SQL 插入语句
-    #     insert_sql = """
-    #     INSERT INTO `default`.msg_event (
-    #         original_msg, hostname, program, event_cn, event_type,
-    #         `level`, level_cn, log_category, `timestamp`
-    #     ) VALUES (
-    #         '', '', '', '', '', 0, '', '', 1757065656
-    #     )
-    #     """
-        
-    #     # 执行插入
-    #     client.execute(insert_sql)
-    #     print("数据插入成功")
-    
-    # except Exception as e:
-    #     print(f"插入失败: {str(e)}")
-    
-    # finally:
-    #     # 关闭连接
-        # client.disconnect()
+def filter_func(iterator):
+    import polars as pl
+    for batch in iterator:
+        df = pl.from_arrow(batch)
+        arrow_table = df.to_arrow()
+        for sub_batch in arrow_table.to_batches():
+            yield sub_batch
+ 
 
 
 class OSSEC:
     def __init__(self):
         # 1. 初始化SparkSession
-        self.spark = NewSpark(url="sc://localhost:15002",name="syslogProcessApp").get_spark()
+
+        self.init = NewSpark(url="sc://localhost:15002",name="syslogProcessApp")
+        self.spark = self.init.get_spark()
         self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
 
     def new_df_msg(self, msglist:list):
@@ -83,8 +51,7 @@ class OSSEC:
         ''')
         
         # result_df.show()
-
-        result_df=result_df.select(
+        result_df = result_df.select(
             col("original_msg"),
             col("tb1.hostname"),
             col("tb1.program"),
@@ -96,10 +63,11 @@ class OSSEC:
             col("timestamp"),
         )
 
+        df = result_df.mapInArrow(filter_func,result_df.schema)
 
-      
+        df.show()
 
-        result_df.foreachPartition(write_to_clickhouse)
+        # result_df.foreachPartition(write_to_clickhouse)
 
 
 

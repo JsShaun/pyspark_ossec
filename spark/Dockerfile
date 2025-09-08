@@ -34,7 +34,7 @@ RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple/ &
     pip3 config set install.trusted-host pypi.tuna.tsinghua.edu.cn
 
 # 安装pandas和pyarrow
-RUN pip3 install --no-cache-dir pandas pyarrow clickhouse-driver
+RUN pip3 install --no-cache-dir polars pyarrow confluent_kafka
 
 # 切换回spark用户
 USER 185
