@@ -1,21 +1,20 @@
-from pyspark.sql.functions import regexp_extract, col, broadcast, to_json, struct
+from pyspark.sql import functions as F 
 from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
-from hpspark import NewSpark
-# from helper import KafkaConsumer,KafkaProducer
+from hpspark import NewSpark,polars_func
 
 
-
-def write_to_clickhouse(msglist):
-    from helper import KafkaConsumer,KafkaProducer
-    p1 = KafkaProducer(bootstrap_servers = 'localhost:9092')
-    p1.send(topic='linux_result', partition=0, messages=msglist)
-
+# def write_to_clickhouse(msglist):
+#     from helper import KafkaConsumer,KafkaProducer
+#     p1 = KafkaProducer(bootstrap_servers = 'localhost:9092')
+#     p1.send(topic='linux_result', partition=0, messages=msglist)
 
 
-def filter_func(iterator):
+def polars_func(iterator):
+    '''使用polars数据处理'''
     import polars as pl
     for batch in iterator:
         df = pl.from_arrow(batch)
+        # 在这里写polars处理逻辑
         arrow_table = df.to_arrow()
         for sub_batch in arrow_table.to_batches():
             yield sub_batch
@@ -25,23 +24,23 @@ def filter_func(iterator):
 class OSSEC:
     def __init__(self):
         # 1. 初始化SparkSession
+        self.spark = NewSpark(url="sc://localhost:15002",name="syslogProcessApp").get_spark()
+        self.broadcasted_event_df = F.broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
 
-        self.init = NewSpark(url="sc://localhost:15002",name="syslogProcessApp")
-        self.spark = self.init.get_spark()
-        self.broadcasted_event_df = broadcast(self.spark.createDataFrame(get_event_mapping())) # 广播表到所有节点
+
 
     def new_df_msg(self, msglist:list):
         self.broadcasted_event_df.createOrReplaceTempView('tbevent')
-        df = self.spark.createDataFrame(msglist)
+        df = self.spark.createDataFrame(msglist).withColumn("RowId",F.monotonically_increasing_id())
         # 提取核心字段hostname(主机名)、program（程序）、日志记录（msg）
         syslog_pattern = r"""(\S+)\s+(\S+)\[\d+\]:\s*(.*)"""
         df.select(
-            col("id"),
-            col("value").alias("original_msg"),
-            col('timestamp'),
-            regexp_extract(col("value"), syslog_pattern, 1).alias("hostname"),
-            regexp_extract(col("value"), syslog_pattern, 2).alias("program"),
-            regexp_extract(col("value"), syslog_pattern, 3).alias("msg"),
+            F.col("id"),
+            F.col("value").alias("original_msg"),
+            F.col('timestamp'),
+            F.regexp_extract(F.col("value"), syslog_pattern, 1).alias("hostname"),
+            F.regexp_extract(F.col("value"), syslog_pattern, 2).alias("program"),
+            F.regexp_extract(F.col("value"), syslog_pattern, 3).alias("msg"),
         ).createOrReplaceTempView('tbmsg')
 
         result_df = self.spark.sql('''
@@ -52,18 +51,18 @@ class OSSEC:
         
         # result_df.show()
         result_df = result_df.select(
-            col("original_msg"),
-            col("tb1.hostname"),
-            col("tb1.program"),
-            col("event_cn"),
-            col("event_type"),
-            col("level"),
-            col("level_cn"),
-            col("log_category"),
-            col("timestamp"),
+            F.col("original_msg"),
+            F.col("tb1.hostname"),
+            F.col("tb1.program"),
+            F.col("event_cn"),
+            F.col("event_type"),
+            F.col("level"),
+            F.col("level_cn"),
+            F.col("log_category"),
+            F.col("timestamp"),
         )
 
-        df = result_df.mapInArrow(filter_func,result_df.schema)
+        df = result_df.mapInArrow(polars_func,result_df.schema)
 
         df.show()
 
