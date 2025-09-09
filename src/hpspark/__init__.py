@@ -1,6 +1,5 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType
-from .polars_udf import *
 from .pandas_udfs import *
 
 
@@ -18,7 +17,7 @@ class NewSpark:
         "注册自定义udf"
         self.spark.udf.register("message_udf",message_udf)
         self.spark.udf.register("envent_udf",envent_udf)
-        self.spark.udf.register("polars_func",polars_func)
+
 
         return self.spark
         

@@ -1,6 +1,7 @@
 from pyspark.sql import functions as F 
 from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
-from hpspark import NewSpark,polars_func
+from hpspark import NewSpark
+
 
 
 # def write_to_clickhouse(msglist):
