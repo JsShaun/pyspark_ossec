@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  kafka-broker:
+    image: apache/kafka:latest
+    container_name: broker
+    ports:
+      - "9092:9092"
+    networks:
+      busynet:
+        aliases:
+          - kafka-worker
+
+networks:
+  busynet:
+    external: true
+    name: busynet
