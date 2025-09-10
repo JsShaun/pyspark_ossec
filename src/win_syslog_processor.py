@@ -103,8 +103,8 @@ Process Information:
     """
 
     msglist = []
-    msglist.append({'value':msg1,'id':1})
-    msglist.append({'value':msg2,'id':2})
+    msglist.append({'value':msg1,'id':1, 'timestamp':1757065656})
+    msglist.append({'value':msg2,'id':2, 'timestamp':1757065656})
 
     o = OSSEC()
     o.new_df_msg(msglist)

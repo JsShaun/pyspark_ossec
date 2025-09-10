@@ -44,13 +44,13 @@ if __name__ == "__main__":
 
 
     msglist = []
-    msglist.append({'value':msg1,'id':1})
-    msglist.append({'value':msg2,'id':2})
-    msglist.append({'value':msg3,'id':3})
-    msglist.append({'value':msg4,'id':4})
-    msglist.append({'value':msg5,'id':5})
-    msglist.append({'value':msg6,'id':6})
-    msglist.append({'value':msg7,'id':7})
+    msglist.append({'value':msg1,'id':1, 'timestamp':1757065656})
+    msglist.append({'value':msg2,'id':2, 'timestamp':1757065656})
+    msglist.append({'value':msg3,'id':3, 'timestamp':1757065656})
+    msglist.append({'value':msg4,'id':4, 'timestamp':1757065656})
+    msglist.append({'value':msg5,'id':5, 'timestamp':1757065656})
+    msglist.append({'value':msg6,'id':6, 'timestamp':1757065656})
+    msglist.append({'value':msg7,'id':7, 'timestamp':1757065656})
    
     
     oss = OSSEC()
