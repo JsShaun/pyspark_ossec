@@ -103,6 +103,6 @@ if __name__ == "__main__":
     }
     # 创建并启动消费者
     consumer = KafkaConsumer(**config)
-    for data in  consumer.receive_batch(topic='Linux',partitions=[0]):
+    for data in  consumer.receive_batch(topic='linux_original',partitions=[0]):
         print("data: ",data)
 

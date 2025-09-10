@@ -210,5 +210,5 @@ if __name__ == "__main__":
     msglist.append({'value':msg6,'id':6})
     # 要发送的消息
     
-    p1.send(topic='Linux', partition=0, data=msglist)
+    p1.send(topic='linux_original', partition=0, data=msglist)
 

@@ -44,10 +44,12 @@ class OSSEC:
             F.col("timestamp"),
         )
         # result_df.show()
+
+        # 将处理好的数据发送至Kfkaf
         p1 = KafkaProducer(bootstrap_servers = '192.168.64.1:9092')
         for row in result_df.toLocalIterator():
             # print('发送row：',row)
-            p1.send(topic='linux_rejieguo', partition=0, data=row.asDict())
+            p1.send(topic='linux_result', partition=0, data=row.asDict())
 
 
 
@@ -56,7 +58,7 @@ if __name__ == "__main__":
     oss = OSSEC()
     # 创建并启动消费者
     consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="sample_consumer_group_v2")
-    for msglist in  consumer.receive_batch(topic='Linux',partitions=[0]):
+    for msglist in  consumer.receive_batch(topic='linux_original',partitions=[0]):
         oss.new_df_msg(msglist)
 
     # msg1 = "Sep 02 08:30:15 server01 sshd[1234]: Accepted password for jdoe from 192.168.1.100 port 54321 ssh2"
