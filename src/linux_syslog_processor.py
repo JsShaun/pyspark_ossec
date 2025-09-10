@@ -3,6 +3,51 @@ from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux�
 from hpspark import NewSpark
 from helper import KafkaProducer,KafkaConsumer
 
+
+def test():
+    from kafka import KafkaProducer
+    import json
+    import time
+
+    # Kafka 配置
+    bootstrap_servers = ['192.168.64.1:9092']  # Kafka 服务器地址
+    topic = 'test_topic'  # 要发送到的主题
+
+    # 创建生产者
+    producer = KafkaProducer(
+        bootstrap_servers=bootstrap_servers,
+        # 将消息序列化为 JSON 格式
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+
+    try:
+        # 发送 5 条测试消息
+        for i in range(5):
+            # 消息内容
+            message = {
+                "id": i,
+                "message": f"这是第 {i+1} 条测试消息",
+                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+            }
+            
+            # 发送消息
+            producer.send(topic, value=message)
+            print(f"已发送: {message}")
+            
+            # 每发送一条消息等待 1 秒
+            time.sleep(1)
+        
+        # 确保所有消息都被发送出去
+        producer.flush()
+        print("所有消息发送完成")
+
+    except Exception as e:
+        print(f"发送过程中出错: {str(e)}")
+    finally:
+        # 关闭生产者
+        producer.close()
+
+
  
 class OSSEC:
     def __init__(self):
@@ -45,11 +90,13 @@ class OSSEC:
         )
         # result_df.show()
 
+        result_df
+
         # 将处理好的数据发送至Kfkaf
-        p1 = KafkaProducer(bootstrap_servers = '192.168.64.1:9092')
-        for row in result_df.toLocalIterator():
-            # print('发送row：',row)
-            p1.send(topic='linux_result', partition=0, data=row.asDict())
+        # p1 = KafkaProducer(bootstrap_servers = '192.168.64.1:9092')
+        # for row in result_df.toLocalIterator():
+        #     # print('发送row：',row)
+        #     p1.send(topic='linux_result', partition=0, data=row.asDict())
 
 
 

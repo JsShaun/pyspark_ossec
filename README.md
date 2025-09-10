@@ -17,7 +17,7 @@
 - pip3 install googleapis-common-protos
 
 ## 安装pyspark库
-- pip3 install pyspark==4.0
+- pip3 install pyspark==3.5.6
 - pip3 install pandas
 - pip3 install pyarrow
 
