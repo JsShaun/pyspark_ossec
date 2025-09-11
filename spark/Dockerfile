@@ -1,5 +1,5 @@
 # 基于官方Spark 3.5.6镜像
-FROM apache/spark:3.5.6
+FROM apache/spark:4.0.0
 
 USER root
 

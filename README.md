@@ -27,4 +27,11 @@
 
 
 
+### 使用脚本下载kafka读写jar包
+- ./spark-shell --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0 --conf spark.driver.host=localhost
+
+
+- ./spark-shell --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0 --repositories https://maven.aliyun.com/repository/public --conf spark.driver.host=localhost
+
+
 

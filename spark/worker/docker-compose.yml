@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   spark-worker:
-    image: pyspark:4.0
+    image: pyspark:4.0.0
     container_name: spark-worker
     environment:
       - SPARK_MODE=worker

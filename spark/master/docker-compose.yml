@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   spark-master:
-    image: pyspark:4.0
+    image: pyspark:4.0.0
     container_name: spark-master
     environment:
       - SPARK_MODE=master
