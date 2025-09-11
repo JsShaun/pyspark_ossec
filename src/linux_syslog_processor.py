@@ -1,6 +1,7 @@
 from pyspark.sql import functions as F 
 from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
 from hpspark import NewSpark
+from helper import KafkaProducer,KafkaConsumer
 
 
 class OSSEC:
@@ -46,7 +47,7 @@ class OSSEC:
         # result_df.show()
 
         # 将处理好的数据发送至Kfkaf
-        from helper import KafkaProducer,KafkaConsumer
+        
         p1 = KafkaProducer(bootstrap_servers = '192.168.64.1:9092')
         for row in result_df.toLocalIterator():
             # print('发送row：',row)
@@ -58,23 +59,23 @@ if __name__ == "__main__":
 
     oss = OSSEC()
     # 创建并启动消费者
-    # consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="sample_consumer_group_v2")
-    # for msglist in  consumer.receive_batch(topic='linux_original',partitions=[0]):
-    #     oss.new_df_msg(msglist)
+    consumer = KafkaConsumer(bootstrap_servers="localhost:9092", group_id="sample_consumer_group_v2")
+    for msglist in  consumer.receive_batch(topic='linux_original',partitions=[0]):
+        oss.new_df_msg(msglist)
 
-    msg1 = "Sep 02 08:30:15 server01 sshd[1234]: Accepted password for jdoe from 192.168.1.100 port 54321 ssh2"
-    msg2 = "Sep 02 08:35:20 server01 sshd[5678]: Failed password for invalid user admin from 10.0.0.1 port 9876 ssh2"
-    msg3 = "Sep 02 10:05:22 server02 kernel[7890]: USB device not accepting address 5, error -71"
-    msg5 = "Sep 02 14:30:45 web01 firewalld[9012]: REJECT: IN=eth0 OUT= MAC=xx:xx:xx SRC=10.0.0.5 DST=192.168.1.10"
-    msg6 = "Sep 02 15:00:00 db01 nginx[2345]: 192.168.1.200 - - \"GET /index.html HTTP/1.1\" 200 1234"
-    msglist = []
-    msglist.append({'value':msg1,'id':1,'timestamp':1757065656})
-    msglist.append({'value':msg2,'id':2,'timestamp':1757065656})
-    msglist.append({'value':msg3,'id':3,'timestamp':1757065656})
-    # msglist.append({'value':msg4,'id':4})
-    msglist.append({'value':msg5,'id':5,'timestamp':1757065656})
-    msglist.append({'value':msg6,'id':6,'timestamp':1757065656})
-    oss.new_df_msg(msglist)
+    # msg1 = "Sep 02 08:30:15 server01 sshd[1234]: Accepted password for jdoe from 192.168.1.100 port 54321 ssh2"
+    # msg2 = "Sep 02 08:35:20 server01 sshd[5678]: Failed password for invalid user admin from 10.0.0.1 port 9876 ssh2"
+    # msg3 = "Sep 02 10:05:22 server02 kernel[7890]: USB device not accepting address 5, error -71"
+    # msg5 = "Sep 02 14:30:45 web01 firewalld[9012]: REJECT: IN=eth0 OUT= MAC=xx:xx:xx SRC=10.0.0.5 DST=192.168.1.10"
+    # msg6 = "Sep 02 15:00:00 db01 nginx[2345]: 192.168.1.200 - - \"GET /index.html HTTP/1.1\" 200 1234"
+    # msglist = []
+    # msglist.append({'value':msg1,'id':1,'timestamp':1757065656})
+    # msglist.append({'value':msg2,'id':2,'timestamp':1757065656})
+    # msglist.append({'value':msg3,'id':3,'timestamp':1757065656})
+    # # msglist.append({'value':msg4,'id':4})
+    # msglist.append({'value':msg5,'id':5,'timestamp':1757065656})
+    # msglist.append({'value':msg6,'id':6,'timestamp':1757065656})
+    # oss.new_df_msg(msglist)
    
 
 
