@@ -8,5 +8,4 @@ RUN pip3 config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple \
 
 RUN pip3 install --no-cache-dir \
     pandas \
-    pyarrow \
-    kafka-python
+    pyarrow 

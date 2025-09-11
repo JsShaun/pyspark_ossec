@@ -1,5 +1,4 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType
 from .msgevent import envent_udf
 
 
@@ -9,8 +8,6 @@ class NewSpark:
 
     def __init__(self,url="sc://localhost:15002",name="AppTest"):
         self.spark = SparkSession.builder.remote(url).appName(name).getOrCreate()
-        # self.spark = SparkSession.builder.appName("syslogProcessApp").master("local[*]").getOrCreate()
-        # self.spark.sparkContext.addPyFile("helper.zip") 
         
     def get_spark(self):
         "注册自定义udf"
