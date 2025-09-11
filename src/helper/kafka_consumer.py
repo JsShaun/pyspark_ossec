@@ -101,8 +101,17 @@ if __name__ == "__main__":
         "bootstrap_servers": "192.168.64.1:9092",
         "group_id": "sample_consumer_group_v2",
     }
+
+
+    topic = 'topic1111'
+    # topic = 'linux_original'
     # 创建并启动消费者
     consumer = KafkaConsumer(**config)
-    for data in  consumer.receive_batch(topic='linux_original',partitions=[0]):
+    for data in  consumer.receive_batch(topic=topic, partitions=[0]):
         print("data: ",data)
+
+
+
+
+
 

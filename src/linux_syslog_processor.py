@@ -3,7 +3,6 @@ from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux�
 from hpspark import NewSpark
 
 
- 
 class OSSEC:
     def __init__(self):
         # 1. 初始化SparkSession
@@ -43,27 +42,15 @@ class OSSEC:
             F.col("log_category"),
             F.col("timestamp"),
         )
-        result_df.show()
-
-
-        result_df.write \
-        .format("kafka") \
-        .option("kafka.bootstrap.servers", "192.168.64.1:9092") \
-        .option("topic", "topic1111") \
-        .option("kafka.compression.type", "snappy") \
-        .option("kafka.acks", "all") \
-        .option("kafka.retries", "3") \
-        .mode("append") \
-        .save()
-
-        # result_df
+        result_df.printSchema()
+        # result_df.show()
 
         # 将处理好的数据发送至Kfkaf
-        # from helper import KafkaProducer,KafkaConsumer
-        # p1 = KafkaProducer(bootstrap_servers = '192.168.64.1:9092')
-        # for row in result_df.toLocalIterator():
-        #     # print('发送row：',row)
-        #     p1.send(topic='linux_result', partition=0, data=row.asDict())
+        from helper import KafkaProducer,KafkaConsumer
+        p1 = KafkaProducer(bootstrap_servers = '192.168.64.1:9092')
+        for row in result_df.toLocalIterator():
+            # print('发送row：',row)
+            p1.send(topic='linux_result', partition=0, data=row.asDict())
 
 
 
