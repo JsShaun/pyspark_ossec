@@ -1,4 +1,6 @@
-### 使用脚本下载kafka读写jar包
+
+## 以下为调试笔记
+### 使用脚本下载kafka读写jar包 —— 无法在worker发送kafka
 - ./bin/spark-shell --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0 --repositories https://maven.aliyun.com/repository/public --conf spark.driver.host=localhost
 - ./sbin/start-connect-server.sh --packages org.apache.spark:spark-sql-kafka-0-10_2.13:4.0.0
 
