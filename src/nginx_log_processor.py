@@ -1,5 +1,5 @@
 from pyspark.sql.functions import regexp_extract, col, broadcast
-from regular.nginx_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
+from hpspark.regular.nginx_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
 from hpspark import NewSpark
 
 

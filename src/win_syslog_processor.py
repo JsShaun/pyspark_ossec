@@ -1,5 +1,5 @@
 from pyspark.sql.functions import regexp_extract, col, broadcast
-from regular.windows_event_mapping import get_event_mapping
+from hpspark.regular.windows_event_mapping import get_event_mapping
 from hpspark import NewSpark
 
 

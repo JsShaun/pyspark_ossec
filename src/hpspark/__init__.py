@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from .msgevent import envent_udf
+from .fn_msg import envent_udf, message_udf
 
 
 
@@ -11,7 +11,7 @@ class NewSpark:
         
     def get_spark(self):
         "注册自定义udf"
-        # self.spark.udf.register("message_udf",message_udf)
+        self.spark.udf.register("message_udf",message_udf)
         self.spark.udf.register("envent_udf",envent_udf)
         return self.spark
         

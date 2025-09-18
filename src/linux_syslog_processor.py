@@ -1,5 +1,5 @@
 from pyspark.sql import functions as F 
-from regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
+from hpspark.regular.linux_event_mapping import get_event_mapping  # 导入您的Linux事件映射表
 from hpspark import NewSpark
 from helper import KafkaProducer,KafkaConsumer
 

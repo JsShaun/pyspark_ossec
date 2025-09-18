@@ -1,5 +1,5 @@
 from pyspark.sql.functions import pandas_udf
-from pyspark.sql.types import StructType, StructField, StringType
+from pyspark.sql.types import StructType, StructField, StringType, BooleanType
 import pandas as pd
 
 
@@ -13,7 +13,7 @@ result_schema = StructType([
 
 @pandas_udf(result_schema)
 def message_udf(msg:pd.Series) -> pd.DataFrame:
-
+    '''返回多字段'''
     full_event = msg.str.replace(r"\s+", " ",regex=True)
     # 2. 移除不同格式的日期时间
     # 格式1: [Mon. Jan. 1 00:00:00 2023] 
@@ -37,3 +37,11 @@ def message_udf(msg:pd.Series) -> pd.DataFrame:
         "hostname": hostname,
         "program_name": program_name,
     })
+
+
+
+
+@pandas_udf(BooleanType())
+def envent_udf(original_msg:pd.Series) -> pd.Series:
+    '''返回单字段'''
+    return original_msg == original_msg
